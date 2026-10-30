@@ -1,0 +1,44 @@
+---
+- hosts: all
+  gather_facts: false
+  vars:
+    pkg: "curl"
+    command_curl: "curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -"
+    repo_path: "/etc/yum.repos.d/nodesource-nodejs.repo"
+  tasks:
+   - name: install curl if not exist
+     yum:
+       name: "{{ pkg }}"
+       state: present
+
+   - name: Add nodejs repository
+     shell:
+       cmd: "{{ command_curl }}"
+     register: out
+     tags:
+       - always
+       - stats
+
+   - name: Gather stats of repository file
+     ansible.builtin.stat:
+       path: "{{ repo_path }}"
+     register: st_bkp
+     tags:
+       - always
+       - stats
+
+         # - debug: Check if repostory path exist and added
+         #msg: "{{ st_bkp }}"
+
+   - name: Install nodejs
+     ansible.builtin.dnf:
+      name: nodejs
+      state: present
+
+   - name: verify installed nodejs version
+     shell:
+       cmd: "node -v"
+     register: out
+     tags:
+       - always
+       - stats
