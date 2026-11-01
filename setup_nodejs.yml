@@ -1,0 +1,200 @@
+---
+- hosts: all
+  gather_facts: false
+  vars:
+    pkg: "curl"
+    command_curl: "curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -"
+    repo_path: "/etc/yum.repos.d/nodesource-nodejs.repo"
+
+  tasks:
+   - name: Create soar_web application system user account
+     ansible.builtin.user:
+       name: soar_web
+       system: true
+
+   - name: install curl if not exist
+     yum:
+       name: "{{ pkg }}"
+       state: present
+
+   - name: Add nodejs repository
+     shell:
+       cmd: "{{ command_curl }}"
+     register: out
+     tags:
+       - always
+       - stats
+
+   - name: Gather stats of repository file
+     ansible.builtin.stat:
+       path: "{{ repo_path }}"
+     register: st_bkp
+     tags:
+       - always
+       - stats
+
+   - name: Install nodejs
+     ansible.builtin.dnf:
+      name: nodejs
+      state: present
+
+   - name: verify installed nodejs version
+     shell:
+       cmd: "node -v"
+     register: out
+     tags:
+       - always
+       - stats
+
+   - name: Install required npm packages
+     community.general.npm:
+       name: "{{ item.name }}"
+       version: "{{ item.version }}"
+       global: true
+     loop:
+       - { name: "dotenv", version: "16.0.3" }
+       - { name: "ejs", version: "3.1.8" }
+       - { name: "express", version: "4.18.2" }
+       - { name: "express-session", version: "1.17.3" }
+       - { name: "node-fetch", version: "2.6.1" }
+       - { name: "activedirectory", version: "0.7.2" }
+       - { name: "cookie-parser", version: "1.4.6" }
+       - { name: "debug", version: "4.3.4" }
+       - { name: "morgan", version: "1.10.0" }
+       - { name: "connect-redis", version: "6.1.3" }
+       - { name: "redis", version: "3.1.2" }
+       - { name: "oracledb", version: "5.5.0" }
+       - { name: "node-oracledb", version: "1.0.2" }
+       - { name: "ssl-root-cas", version: "1.3.1" }
+       - { name: "splunk-sdk", version: "2.0.0" }
+
+   - name: Create application directories
+     ansible.builtin.file:
+       path: "{{ item }}"
+       state: directory
+       owner: soar_web
+       group: root
+       mode: '0770'
+     loop:
+       - /opt/soar_intake
+       - /opt/soar_intake/sslcert
+       - /opt/soar_intake/src
+       - /opt/soar_intake/src/css
+       - /opt/soar_intake/src/img
+       - /opt/soar_intake/src/js
+       - /opt/soar_intake/src/views
+
+   - name: Copy required files
+     ansible.builtin.copy:
+       src: "{{ item.src }}"
+       dest: "{{ item.dest }}"
+       owner: soar_web
+       group: root
+       mode: '0600'
+     loop:
+       - src: soar_intake/src/img/logo.png
+         dest: /opt/soar_intake/src/img/logo.png
+       - src: soar_intake/src/views/login.ejs
+         dest: /opt/soar_intake/src/views/login.ejs
+     ## Notify the handlers
+
+   - name: Deploy SOAR View templates
+     ansible.builtin.template:
+       src: "{{ item.src }}"
+       dest: "{{ item.dest }}"
+       owner: soar_web
+       group: root
+       mode: '0600'
+     loop:
+      -  src: soar_intake/src/views/cfi.ejs.j2
+         dest: /opt/soar_intake/src/views/cfi.ejs
+      -  src: soar_intake/src/views/ediscovery.ejs.j2
+         dest: /opt/soar_intake/src/views/ediscovery.ejs
+    ## Notify the handlers
+
+## Block 2
+  # - name: Copy required files
+  #   ansible.builtin.copy:
+  #     src: "{{ item.src }}"
+  #     dest: "{{ item.dest }}"
+  #     owner: soar_web
+  #     group: root
+  #     mode: '0600'
+  #   loop:
+  #     - src: soar_intake/src/img/logo.png
+  #       dest: /opt/soar_intake/src/img/logo.png
+  #     - src: soar_intake/src/views/login.ejs
+  #       dest: /opt/soar_intake/src/views/login.ejs
+  #   ## Notify the handlers
+#
+  # - name: Deploy SOAR View templates
+  #   ansible.builtin.template:
+  #     src: "{{ item.src }}"
+  #     dest: "{{ item.dest }}"
+  #     owner: soar_web
+  #     group: root
+  #     mode: '0600'
+  #   loop:
+  #    -  src: soar_intake/src/views/cfi.ejs.j2
+  #       dest: /opt/soar_intake/src/views/cfi.ejs
+  #    -  src: soar_intake/src/views/ediscovery.ejs.j2
+  #       dest: /opt/soar_intake/src/views/ediscovery.ejs
+  #  ## Notify the handlers
+#
+
+   - name: Create oracle client directories
+     ansible.builtin.file:
+       path: "{{ oracle_client_dir }}"
+       state: directory
+       owner: root
+       group: root
+       mode: '0755
+       '
+   - name: Download oracle client archieve
+     ansible.builtin.get_url:
+       url: "{{ oracle_client_url }}"
+       dest: "{{ oracle_client_dir }}/{{ oracle_client_filename }}"
+       mode: '0644'
+       owner: root
+       group: root
+     register: oracle_download
+   
+   - name: Extract Oracle client archive
+     ansible.builtin.unarchive:
+       src: "{{ oracle_client_dir }}/{{ oracle_client_filename }}"
+       dest:  "{{ oracle_client_dir }}"
+       remote_src: true
+       owner: root
+       group: root
+
+   - name: Configure oracle instant client library path
+     ansible.builtin.copy:
+       content: "{{ oracle_client_dir }}/{{ oracle_client_so_target }}"
+       dest: /etc/ld.so.conf.d/oracle-instantclient.conf
+       owner: root
+       group: root
+       mode: '0755'
+  ## notify Run loconfig
+
+   - name: Install redis 
+     ansible.builtin.dnf:
+      name: redis
+      state: present
+
+   - name: Start and enable redis
+     ansible.builtin.service:
+       name: redis
+       state: started
+       enabled: true
+
+   - name: Deploy soar_intake systemd service file
+     ansible.builtin.template:
+       src: "{{ item.src }}"
+       dest: "{{ item.dest }}"
+       owner: soar_web
+       group: root
+       mode: '0600'
+     loop:
+      -  src: soar_intake.service.j2
+         dest: /lib/systemd/system/soar_intake.service
+ ## Notify reload systmed, restart soar_intake service
