@@ -142,14 +142,19 @@
   #  ## Notify the handlers
 #
 
+   - name: install unzip if not exist
+     yum:
+       name: "unzip"
+       state: present
+
    - name: Create oracle client directories
      ansible.builtin.file:
        path: "{{ oracle_client_dir }}"
        state: directory
        owner: root
        group: root
-       mode: '0755
-       '
+       mode: '0755'
+       
    - name: Download oracle client archieve
      ansible.builtin.get_url:
        url: "{{ oracle_client_url }}"
