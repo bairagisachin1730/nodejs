@@ -1,0 +1,76 @@
+---
+- hosts: all
+  gather_facts: false
+  vars:
+    pkg: "curl"
+    command_curl: "curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -"
+    repo_path: "/etc/yum.repos.d/nodesource-nodejs.repo"
+    oracle_client_dir: "/opt/oracle"
+    oracle_client_filename: "instantclient-basic-linux.x64-21.6.0.0.0dbru.zip"
+    oracle_client_url: "https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-basic-linux.x64-21.6.0.0.0dbru.zip"
+    oracle_client_so_target: "instantclient_21_6"
+
+
+  tasks:
+
+   - name: Create oracle client directories
+     ansible.builtin.file:
+       path: "{{ oracle_client_dir }}"
+       state: directory
+       owner: root
+       group: root
+       mode: '0755'
+
+   - name: install unzip if not exist
+     yum:
+       name: "unzip"
+       state: present
+
+   - name: Download oracle client archieve
+     ansible.builtin.get_url:
+       url: "{{ oracle_client_url }}"
+       dest: "{{ oracle_client_dir }}/{{ oracle_client_filename }}"
+       mode: '0644'
+       owner: root
+       group: root
+     register: oracle_download
+
+   - name: Extract Oracle client archive
+     ansible.builtin.unarchive:
+       src: "{{ oracle_client_dir }}/{{ oracle_client_filename }}"
+       dest:  "{{ oracle_client_dir }}"
+       remote_src: true
+       owner: root
+       group: root
+
+   - name: Configure oracle instant client library path
+     ansible.builtin.copy:
+       content: "{{ oracle_client_dir }}/{{ oracle_client_so_target }}"
+       dest: /etc/ld.so.conf.d/oracle-instantclient.conf
+       owner: root
+       group: root
+       mode: '0755'
+  ## notify Run loconfig
+
+   - name: Install redis
+     ansible.builtin.dnf:
+      name: redis
+      state: present
+
+   - name: Start and enable redis
+     ansible.builtin.service:
+       name: redis
+       state: started
+       enabled: true
+
+#   - name: Deploy soar_intake systemd service file
+#     ansible.builtin.template:
+#       src: "{{ item.src }}"
+#       dest: "{{ item.dest }}"
+#       owner: soar_web
+#       group: root
+#       mode: '0600'
+#     loop:
+#      -  src: soar_intake.service.j2
+#         dest: /lib/systemd/system/soar_intake.service
+# ## Notify reload systmed, restart soar_intake service
