@@ -10,9 +10,7 @@
     oracle_client_url: "https://download.oracle.com/otn_software/linux/instantclient/216000/instantclient-basic-linux.x64-21.6.0.0.0dbru.zip"
     oracle_client_so_target: "instantclient_21_6"
 
-
   tasks:
-
    - name: Create oracle client directories
      ansible.builtin.file:
        path: "{{ oracle_client_dir }}"
